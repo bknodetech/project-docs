@@ -14,17 +14,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get list of changed files
-        id: files
+      - name: Get list of changed markdown files
         run: |
-          echo "${{ github.event.head_commit.modified }}" | grep '\.md$' > changed_files.txt || echo "No markdown files changed" > changed_files.txt
+          for file in ${{ github.event.head_commit.modified }}; do
+            echo "$file" | grep '\.md$' || continue
+            echo "$file" >> changed_files.txt
+          done
+          if [[ ! -s changed_files.txt ]]; then
+            echo "No markdown files changed" >> changed_files.txt
+          fi
 
       - name: Update Ghost CMS
-        if: success()
         run: |
           while read file; do
             if [[ -f "$file" ]]; then
               node scripts/sync-ghost.js "$file"
+            else
+              echo "File $file not found."
             fi
           done < changed_files.txt
-
