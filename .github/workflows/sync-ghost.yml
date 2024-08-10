@@ -16,7 +16,7 @@ jobs:
 
       - name: Get list of changed markdown files
         run: |
-          for file in ${{ github.event.head_commit.modified }}; do
+          echo "${{ github.event.head_commit.modified }}" | tr -d '[],"' | tr ' ' '\n' | while read file; do
             echo "$file" | grep '\.md$' || continue
             echo "$file" >> changed_files.txt
           done
