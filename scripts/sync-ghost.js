@@ -7,7 +7,7 @@ function sendFileToAPI(filePath, action) {
     });
 
     const options = {
-        hostname: 'https://api.bknode.tech',
+        hostname: 'api.bknode.tech',
         port: 2253,
         path: '/1.0/project/list',
         method: 'POST',
