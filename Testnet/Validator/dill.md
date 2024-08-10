@@ -1,4 +1,4 @@
-# launch-dill-node-test-4
+# launch-dill-node-test-1
 
 # Dill Public Testnet (Andes Testnet) Information
 | Network Name     | Dill Testnet Andes |
