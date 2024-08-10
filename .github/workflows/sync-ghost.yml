@@ -18,6 +18,7 @@ jobs:
         run: |
           for file in ${{ github.event.head_commit.modified }}; do
             echo "$file" | grep '\.md$' || continue
+            echo "$file"
             echo "$file" >> changed_files.txt
           done
           if [[ ! -s changed_files.txt ]]; then
