@@ -1,0 +1,28 @@
+name: Update Ghost CMS with specific updated markdown file
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-ghost:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Get list of changed files
+        id: files
+        run: |
+          git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.md$' > changed_files.txt
+
+      - name: Update Ghost CMS
+        if: success()
+        run: |
+          while read file; do
+            if [[ -f "$file" ]]; then
+              node scripts/sync-ghost.js "$file"
+            fi
+          done < changed_files.txt
+
