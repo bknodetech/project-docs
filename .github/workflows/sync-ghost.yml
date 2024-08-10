@@ -25,8 +25,9 @@ jobs:
         run: |
           while read file; do
             if [[ -f "$file" ]]; then
-              node scripts/sync-ghost.js "$file"
+              node scripts/sync-ghost.js "$file" "update"
             else
+              node scripts/sync-ghost.js "$file" "delete"
               echo "File $file not found."
             fi
           done < changed_files.txt
