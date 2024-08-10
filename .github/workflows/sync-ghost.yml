@@ -17,7 +17,7 @@ jobs:
       - name: Get list of changed files
         id: files
         run: |
-          echo "${{ github.event.head_commit.modified }}" | grep '\.md$' > changed_files.txt
+          echo "${{ github.event.head_commit.modified }}" | grep '\.md$' > changed_files.txt || echo "No markdown files changed" > changed_files.txt
 
       - name: Update Ghost CMS
         if: success()
