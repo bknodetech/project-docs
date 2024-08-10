@@ -16,12 +16,9 @@ jobs:
 
       - name: Get list of changed markdown files
         run: |
-          echo "${{ github.event.head_commit.modified }}" | tr -d '[],"' | tr ' ' '\n' | while read file; do
-            echo "$file" | grep '\.md$' || continue
-            echo "$file" >> changed_files.txt
-          done
+          git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.md$' > changed_files.txt
           if [[ ! -s changed_files.txt ]]; then
-            echo "No markdown files changed" >> changed_files.txt
+            echo "No markdown files changed" > changed_files.txt
           fi
 
       - name: Update Ghost CMS
