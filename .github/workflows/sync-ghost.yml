@@ -31,3 +31,5 @@ jobs:
               echo "File $file not found."
             fi
           done < changed_files.txt
+        env:
+          BKNODE_API_AUTH_KEY: ${{ secrets.BKNODE_API_AUTH_KEY }}
