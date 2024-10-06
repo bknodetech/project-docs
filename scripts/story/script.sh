@@ -20,73 +20,76 @@ Please choose your action:
 4. Schedule a Story client upgrade
 5. Check version
 6. Quit
-Please enter your choice: "
+Please enter your answer: "
 }
 
 install_node() {
     read -p "Enter your moniker: " moniker
 
-    # Define variables
+    # Define versions as variables
     local go_version="1.21.13"
     local story_geth_version="0.9.3-b224fdf"
     local story_version="0.11.0-aac4bfe"
+    local install_dir="$HOME/.story/story"
 
     # Install required packages
     sudo apt update && sudo apt upgrade -y && sudo apt install -y \
         curl git jq build-essential gcc unzip wget lz4
 
     # Install Go
-    wget -q "https://golang.org/dl/go$go_version.linux-amd64.tar.gz" -O /tmp/go$go_version.linux-amd64.tar.gz
+    wget -q "https://golang.org/dl/go$go_version.linux-amd64.tar.gz" -O /tmp/go.tar.gz
     sudo rm -rf /usr/local/go
-    sudo tar -C /usr/local -xzf /tmp/go$go_version.linux-amd64.tar.gz
-    rm /tmp/go$go_version.linux-amd64.tar.gz
+    sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+    rm /tmp/go.tar.gz
     export PATH=$PATH:/usr/local/go/bin:~/go/bin
-    echo "export PATH=$PATH:/usr/local/go/bin:~/go/bin" >> ~/.bash_profile
+    echo 'export PATH=$PATH:/usr/local/go/bin:~/go/bin' >> ~/.bash_profile
     source ~/.bash_profile
 
     # Install Story Geth binary
     wget -q "https://story-geth-binaries.s3.us-west-1.amazonaws.com/geth-public/geth-linux-amd64-$story_geth_version.tar.gz" -O /tmp/geth.tar.gz
     tar -xzf /tmp/geth.tar.gz -C /tmp
     sudo mv /tmp/geth-linux-amd64-$story_geth_version/geth ~/go/bin/story-geth
-    rm -rf /tmp/geth-linux-amd64-$story_geth_version /tmp/geth.tar.gz
+    rm -rf /tmp/geth*
 
     # Install Story binary using Cosmovisor
     wget -q "https://story-geth-binaries.s3.us-west-1.amazonaws.com/story-public/story-linux-amd64-$story_version.tar.gz" -O /tmp/story.tar.gz
     tar -xzf /tmp/story.tar.gz -C /tmp
-    mkdir -p ~/.story/story/cosmovisor/genesis/bin
-    sudo mv /tmp/story-linux-amd64-$story_version/story ~/.story/story/cosmovisor/genesis/bin/story
-    rm -rf /tmp/story-linux-amd64-$story_version /tmp/story.tar.gz
+    mkdir -p $install_dir/cosmovisor/genesis/bin
+    sudo mv /tmp/story-linux-amd64-$story_version/story $install_dir/cosmovisor/genesis/bin/story
+    rm -rf /tmp/story*
 
     # Install the latest version of Cosmovisor
     go install cosmossdk.io/tools/cosmovisor/cmd/cosmovisor@latest
 
     # Setup Cosmovisor environment variables
-    mkdir -p ~/.story/story/cosmovisor
-    echo "export DAEMON_NAME=story" >> ~/.bash_profile
-    echo "export DAEMON_HOME=$HOME/.story/story" >> ~/.bash_profile
-    echo "export PATH=$HOME/go/bin:$DAEMON_HOME/cosmovisor/current/bin:$PATH" >> ~/.bash_profile
+    mkdir -p $install_dir/cosmovisor
+    {
+        echo 'export DAEMON_NAME=story'
+        echo "export DAEMON_HOME=$install_dir"
+        echo "export PATH=$HOME/go/bin:$install_dir/cosmovisor/current/bin:$PATH"
+    } >> ~/.bash_profile
     source ~/.bash_profile
 
     # Initialize The Iliad Network Node
-    ~/.story/story/cosmovisor/genesis/bin/story init --moniker "$moniker" --network iliad
+    $install_dir/cosmovisor/genesis/bin/story init --moniker "$moniker" --network iliad
 
     # Ask user if they want to use a snapshot
     read -p "Do you want to use a snapshot? (yes/no): " use_snapshot
     if [[ "$use_snapshot" == "yes" || "$use_snapshot" == "y" ]]; then
         read -p "Enter the Story snapshot URL: " story_snapshot_url
         read -p "Enter the Story Geth snapshot URL: " story_geth_snapshot_url
-        mkdir -p ~/.story/story
+        mkdir -p $install_dir
         mkdir -p ~/.story/geth/iliad/geth
-        curl "$story_snapshot_url" | lz4 -dc - | tar -xf - -C ~/.story/story
+        curl "$story_snapshot_url" | lz4 -dc - | tar -xf - -C $install_dir
         curl "$story_geth_snapshot_url" | lz4 -dc - | tar -xf - -C ~/.story/geth/iliad/geth
         printf "\nSnapshot downloaded and extracted successfully!\n"
     fi
 
     # Update Peers
     local PEERS
-    PEERS=$(curl -sS https://story-testnet-rpc.blockhub.id/net_info | jq -r '.result.peers[] | "\(.node_info.id)@\(.remote_ip):\(.node_info.listen_addr)"' | awk -F ':' '{print $1":"$(NF)}' | paste -sd, -)
+    PEERS=$(curl -sS https://story-testnet.rpc.bknode.tech/net_info | jq -r '.result.peers[] | "\(.node_info.id)@\(.remote_ip):\(.node_info.listen_addr)"' | awk -F ':' '{print $1":"$(NF)}' | paste -sd, -)
     printf "Updating peers...\n"
-    sed -i.bak -e "s/^persistent_peers *=.*/persistent_peers = \"$PEERS\"/" "$HOME/.story/story/config/config.toml"
+    sed -i.bak -e "s/^persistent_peers *=.*/persistent_peers = \"$PEERS\"/" "$install_dir/config/config.toml"
 
     # Create and Configure systemd Services for Story-Geth and Cosmovisor
     sudo tee /etc/systemd/system/story-geth.service > /dev/null <<EOF
@@ -114,59 +117,70 @@ Restart=on-failure
 RestartSec=3
 LimitNOFILE=65535
 Environment="DAEMON_NAME=story"
-Environment="DAEMON_HOME=$HOME/.story/story"
+Environment="DAEMON_HOME=$install_dir"
 Environment="DAEMON_ALLOW_DOWNLOAD_BINARIES=true"
 Environment="DAEMON_RESTART_AFTER_UPGRADE=true"
-Environment="DAEMON_DATA_BACKUP_DIR=$HOME/.story/story/data"
+Environment="DAEMON_DATA_BACKUP_DIR=$install_dir/data"
 Environment="UNSAFE_SKIP_BACKUP=true"
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # Reload systemd, Enable, and Start Services
+    # Reload systemctl, start services
     sudo systemctl daemon-reload
-    sudo systemctl enable story-geth story
-    sudo systemctl start story-geth story
+    sudo systemctl enable story story-geth
+    sudo systemctl start story story-geth
 
     printf "\nStory Node installed successfully!\n"
 
     # Post-install options
     while true; do
         printf "\nWhat would you like to do next?\n1. Back to dashboard menu\n2. Quit\n"
-        read -p "Enter your choice: " post_install_choice
-        case $post_install_choice in
+        read -p "Enter your choice: " answer
+        case $answer in
             1) return ;;
-            2) printf "Exiting the script. Goodbye!\n"; exit 0 ;;
+            2) printf "Goodbye!\n"; exit 0 ;;
             *) printf "Invalid option. Please try again.\n" ;;
         esac
     done
 }
 
-# Function to check logs
-check_logs() {
-    printf "\nPlease choose the logs to check:\n1. Check Story Logs\n2. Check Story-Geth Logs\n3. Quit\n"
-    printf "Please enter your choice: "
-    read log_choice
+get_logs() {
+    printf "\nPlease choose the logs to check:\n1. Check Story Logs\n2. Check Story-Geth Logs\n3. Quit\nPlease enter your choice: "
+    read -p "Please enter your choice: " log_choice
 
-    case $log_choice in
-        1) printf "\nChecking Story logs... Press Ctrl+C to exit\n"; sudo journalctl -u story -f -o cat ;;
-        2) printf "\nChecking Story-Geth logs... Press Ctrl+C to exit\n"; sudo journalctl -u story-geth -f -o cat ;;
-        3) printf "Exiting log check.\n" ;;
-        *) printf "Invalid option.\n" ;;
-    esac
+    if [[ "$log_choice" =~ ^[1-3]$ ]]; then
+        case $log_choice in
+            1) log_name="Story" ;;
+            2) log_name="Story-Geth" ;;
+            3) printf "Exiting log check.\n"; return ;;
+        esac
+        printf "Checking %s logs... Press Ctrl+C to exit\n" "$log_name"
+        sudo journalctl -u ${log_name,,} -f -o cat
+    else
+        printf "Invalid option.\n"
+    fi
 }
 
-# Function to check sync status
+
 check_sync_status() {
-    printf "\nChecking node sync status...\n"
-    trap 'return' INT
+    local status_url="https://story-testnet.rpc.bknode.tech/status"
+    local local_url="localhost:26657/status"
+
     while true; do
-        local_height=$(curl -s localhost:26657/status | jq -r '.result.sync_info.latest_block_height')
-        network_height=$(curl -s https://story-testnet-rpc.blockhub.id/status | jq -r '.result.sync_info.latest_block_height')
+        # Get local and network heights
+        local local_height network_height blocks_left
+        local_height=$(curl -s "$local_url" | jq -r '.result.sync_info.latest_block_height')
+        network_height=$(curl -s "$status_url" | jq -r '.result.sync_info.latest_block_height')
+
+        # Calculate blocks left to sync
         blocks_left=$((network_height - local_height))
 
-        printf "\033[1;32mYour node height:\033[0m \033[1;34m%s\033[0m | \033[1;33mNetwork height:\033[0m \033[1;36m%s\033[0m | \033[1;37mBlocks left:\033[0m \033[1;31m%s\033[0m\n" "$local_height" "$network_height" "$blocks_left"
-        sleep 5
+        # Print status with improved readability
+        printf "\e[32mYour node height:\e[0m \e[34m%s\e[0m | \e[33mNetwork height:\e[0m \e[36m%s\e[0m | \e[37mBlocks left:\e[0m \e[31m%s\e[0m\n" \
+            "$local_height" "$network_height" "$blocks_left"
+
+        sleep 3
     done
 }
 
@@ -207,22 +221,20 @@ schedule_client_upgrade() {
     done
 }
 
-# Function to check version
-check_version() {
-    printf "\nPlease choose which version to check:\n1. Story Version\n2. Story-Geth Version\n3. Back to main menu\n"
-    printf "Please enter your choice: "
-    read answer
+get_version() {
+    printf "Please choose which version to check:\n1. Story Version\n2. Story-Geth Version\n3. Back to main menu\nPlease enter your choice: "
+    read -r answer
 
     case $answer in
-        1) printf "\nChecking Story version...\n"; cosmovisor run version ;;
-        2) printf "\nChecking Story-Geth version...\n"; story-geth version ;;
+        1) cosmovisor run version ;;
+        2) story-geth version ;;
         3) return ;;
         *) printf "Invalid option.\n" ;;
     esac
 
-    printf "\nPress Enter to continue..."
-    read
+    read -p "Press Enter to continue..."
 }
+
 
 # Main script loop
 while true; do
@@ -230,10 +242,10 @@ while true; do
     read choice
     case $choice in
         1) install_node ;;
-        2) check_logs ;;
+        2) get_logs ;;
         3) check_sync_status ;;
         4) schedule_client_upgrade ;;
-        5) check_version ;;
+        5) get_version ;;
         6) printf "Exiting the dashboard.\n"; exit 0 ;;
         *) printf "Invalid option, please try again.\n" ;;
     esac
