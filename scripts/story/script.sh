@@ -12,15 +12,15 @@ dashboard_menu() {
 
     Website: https://bknode.tech        X: https://x.com/bknodetech     Github: https://github.com/bknodetech
 
-    WELCOME TO STORY DASHBOARD BY BKNODE!
-    Please choose your action:
-    1. Install node
-    2. Check logs
-    3. Check sync status
-    4. Schedule a Story client upgrade
-    5. Check version
-    6. Quit
-    Please enter your choice: "
+WELCOME TO STORY TESTNET DASHBOARD BY BKNODE!
+Please choose your action:
+1. Install node
+2. Check logs
+3. Check sync status
+4. Schedule a Story client upgrade
+5. Check version
+6. Quit
+Please enter your choice: "
 }
 
 install_node() {
@@ -75,14 +75,10 @@ install_node() {
     if [[ "$use_snapshot" == "yes" || "$use_snapshot" == "y" ]]; then
         read -p "Enter the Story snapshot URL: " story_snapshot_url
         read -p "Enter the Story Geth snapshot URL: " story_geth_snapshot_url
-        wget -q "$story_snapshot_url" -O /tmp/story_snapshot.tar.gz
-        wget -q "$story_geth_snapshot_url" -O /tmp/story_geth_snapshot.tar.gz
         mkdir -p ~/.story/story
         mkdir -p ~/.story/geth/iliad/geth
-        tar -xzf /tmp/story_snapshot.tar.gz -C ~/.story/story
-        tar -xzf /tmp/story_geth_snapshot.tar.gz -C ~/.story/geth/iliad/geth
-        rm /tmp/story_snapshot.tar.gz
-        rm /tmp/story_geth_snapshot.tar.gz
+        curl "$story_snapshot_url" | lz4 -dc - | tar -xf - -C ~/.story/story
+        curl "$story_geth_snapshot_url" | lz4 -dc - | tar -xf - -C ~/.story/geth/iliad/geth
         printf "\nSnapshot downloaded and extracted successfully!\n"
     fi
 
