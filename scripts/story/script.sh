@@ -50,6 +50,7 @@ install_node() {
     # Install Story Geth binary
     wget -q "https://story-geth-binaries.s3.us-west-1.amazonaws.com/geth-public/geth-linux-amd64-$story_geth_version.tar.gz" -O /tmp/geth.tar.gz
     tar -xzf /tmp/geth.tar.gz -C /tmp
+    mkdir -p ~/go/bin
     sudo mv /tmp/geth-linux-amd64-$story_geth_version/geth ~/go/bin/story-geth
     rm -rf /tmp/geth*
 
