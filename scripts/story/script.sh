@@ -72,7 +72,7 @@ install_node() {
 
     # Ask user if they want to use a snapshot
     read -p "Do you want to use a snapshot? (yes/no): " use_snapshot
-    if [[ "$use_snapshot" == "yes" || "$use_snapshot" == "y"]]; then
+    if [[ "$use_snapshot" == "yes" || "$use_snapshot" == "y" ]]; then
         read -p "Enter the Story snapshot URL: " story_snapshot_url
         read -p "Enter the Story Geth snapshot URL: " story_geth_snapshot_url
         wget -q "$story_snapshot_url" -O /tmp/story_snapshot.tar.gz
