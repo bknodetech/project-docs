@@ -10,49 +10,57 @@ dashboard_menu() {
     ██   ██ ██  ██  ██  ██ ██ ██    ██ ██   ██ ██      
     ██████  ██   ██ ██   ████  ██████  ██████  ███████ 
 
-    Website: https://bknode.tech
-    X: https://x.com/bknodetech
-    Github: https://github.com/bknodetech
+    Website: https://bknode.tech        X: https://x.com/bknodetech     Github: https://github.com/bknodetech
 
-    Welcome to Story Node by BKNode! Please choose your action:
-    1. Install Story node
+    WELCOME TO STORY DASHBOARD BY BKNODE!
+    Please choose your action:
+    1. Install node
     2. Check logs
     3. Check sync status
-    4. Schedule a Story Client Upgrade
+    4. Schedule a Story client upgrade
     5. Check version
     6. Quit
     Please enter your choice: "
 }
 
-install_story_node() {
-    read -p "Enter moniker: " moniker
+install_node() {
+    read -p "Enter your moniker: " moniker
+
+    # Define variables
+    local go_version="1.21.13"
+    local story_geth_version="0.9.3-b224fdf"
+    local story_version="0.11.0-aac4bfe"
 
     # Install required packages
-    sudo apt update && sudo apt upgrade -y && sudo apt install curl git jq build-essential gcc unzip wget lz4 sudo -y
-    
+    sudo apt update && sudo apt upgrade -y && sudo apt install -y \
+        curl git jq build-essential gcc unzip wget lz4
+
     # Install Go
-    local ver="1.22.0"
-    wget "https://golang.org/dl/go$ver.linux-amd64.tar.gz" -O /tmp/go$ver.linux-amd64.tar.gz
-    sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf /tmp/go$ver.linux-amd64.tar.gz
-    rm /tmp/go$ver.linux-amd64.tar.gz
+    wget -q "https://golang.org/dl/go$go_version.linux-amd64.tar.gz" -O /tmp/go$go_version.linux-amd64.tar.gz
+    sudo rm -rf /usr/local/go
+    sudo tar -C /usr/local -xzf /tmp/go$go_version.linux-amd64.tar.gz
+    rm /tmp/go$go_version.linux-amd64.tar.gz
+    export PATH=$PATH:/usr/local/go/bin:~/go/bin
     echo "export PATH=$PATH:/usr/local/go/bin:~/go/bin" >> ~/.bash_profile
-    source ~/.bash_profile && go version
+    source ~/.bash_profile
 
-    # Download and install Story-Geth Binary
-    wget -q https://story-geth-binaries.s3.us-west-1.amazonaws.com/geth-public/geth-linux-amd64-0.9.3-b224fdf.tar.gz -O /tmp/geth.tar.gz
+    # Install Story Geth binary
+    wget -q "https://story-geth-binaries.s3.us-west-1.amazonaws.com/geth-public/geth-linux-amd64-$story_geth_version.tar.gz" -O /tmp/geth.tar.gz
     tar -xzf /tmp/geth.tar.gz -C /tmp
-    sudo mv /tmp/geth-linux-amd64-0.9.3-b224fdf/geth ~/go/bin/story-geth
+    sudo mv /tmp/geth-linux-amd64-$story_geth_version/geth ~/go/bin/story-geth
+    rm -rf /tmp/geth-linux-amd64-$story_geth_version /tmp/geth.tar.gz
 
-    # Download and install Story Binary using Cosmovisor
-    wget -q https://story-geth-binaries.s3.us-west-1.amazonaws.com/story-public/story-linux-amd64-0.9.13-b4c7db1.tar.gz -O /tmp/story.tar.gz
+    # Install Story binary using Cosmovisor
+    wget -q "https://story-geth-binaries.s3.us-west-1.amazonaws.com/story-public/story-linux-amd64-$story_version.tar.gz" -O /tmp/story.tar.gz
     tar -xzf /tmp/story.tar.gz -C /tmp
     mkdir -p ~/.story/story/cosmovisor/genesis/bin
-    sudo mv /tmp/story-linux-amd64-0.9.13-b4c7db1/story ~/.story/story/cosmovisor/genesis/bin/story
+    sudo mv /tmp/story-linux-amd64-$story_version/story ~/.story/story/cosmovisor/genesis/bin/story
+    rm -rf /tmp/story-linux-amd64-$story_version /tmp/story.tar.gz
 
     # Install the latest version of Cosmovisor
     go install cosmossdk.io/tools/cosmovisor/cmd/cosmovisor@latest
 
-    # Setup Cosmovisor
+    # Setup Cosmovisor environment variables
     mkdir -p ~/.story/story/cosmovisor
     echo "export DAEMON_NAME=story" >> ~/.bash_profile
     echo "export DAEMON_HOME=$HOME/.story/story" >> ~/.bash_profile
@@ -60,15 +68,32 @@ install_story_node() {
     source ~/.bash_profile
 
     # Initialize The Iliad Network Node
-    ~/.story/story/cosmovisor/genesis/bin/story init --network iliad --moniker "$moniker"
+    ~/.story/story/cosmovisor/genesis/bin/story init --moniker "$moniker" --network iliad
+
+    # Ask user if they want to use a snapshot
+    read -p "Do you want to use a snapshot? (yes/no): " use_snapshot
+    if [[ "$use_snapshot" == "yes" || "$use_snapshot" == "y"]]; then
+        read -p "Enter the Story snapshot URL: " story_snapshot_url
+        read -p "Enter the Story Geth snapshot URL: " story_geth_snapshot_url
+        wget -q "$story_snapshot_url" -O /tmp/story_snapshot.tar.gz
+        wget -q "$story_geth_snapshot_url" -O /tmp/story_geth_snapshot.tar.gz
+        mkdir -p ~/.story/story
+        mkdir -p ~/.story/geth/iliad/geth
+        tar -xzf /tmp/story_snapshot.tar.gz -C ~/.story/story
+        tar -xzf /tmp/story_geth_snapshot.tar.gz -C ~/.story/geth/iliad/geth
+        rm /tmp/story_snapshot.tar.gz
+        rm /tmp/story_geth_snapshot.tar.gz
+        printf "\nSnapshot downloaded and extracted successfully!\n"
+    fi
 
     # Update Peers
-    local PEERS=$(curl -sS https://story-testnet-rpc.blockhub.id/net_info | jq -r '.result.peers[] | "\(.node_info.id)@\(.remote_ip):\(.node_info.listen_addr)"' | awk -F ':' '{print $1":"$(NF)}' | paste -sd, -)
+    local PEERS
+    PEERS=$(curl -sS https://story-testnet-rpc.blockhub.id/net_info | jq -r '.result.peers[] | "\(.node_info.id)@\(.remote_ip):\(.node_info.listen_addr)"' | awk -F ':' '{print $1":"$(NF)}' | paste -sd, -)
     printf "Updating peers...\n"
-    sed -i.bak -e "s/^persistent_peers *=.*/persistent_peers = \"$PEERS\"/" $HOME/.story/story/config/config.toml
+    sed -i.bak -e "s/^persistent_peers *=.*/persistent_peers = \"$PEERS\"/" "$HOME/.story/story/config/config.toml"
 
-    # Create and Configure systemd Service for Story-Geth and Cosmovisor
-    cat <<EOF | sudo tee /etc/systemd/system/story-geth.service > /dev/null
+    # Create and Configure systemd Services for Story-Geth and Cosmovisor
+    sudo tee /etc/systemd/system/story-geth.service > /dev/null <<EOF
 [Unit]
 Description=Story Geth Client
 After=network.target
@@ -82,7 +107,7 @@ LimitNOFILE=65535
 WantedBy=multi-user.target
 EOF
 
-    cat <<EOF | sudo tee /etc/systemd/system/story.service > /dev/null
+    sudo tee /etc/systemd/system/story.service > /dev/null <<EOF
 [Unit]
 Description=Cosmovisor service for Story binary
 After=network.target
@@ -118,7 +143,7 @@ EOF
             2) printf "Exiting the script. Goodbye!\n"; exit 0 ;;
             *) printf "Invalid option. Please try again.\n" ;;
         esac
-    done    
+    done
 }
 
 # Function to check logs
@@ -190,9 +215,9 @@ schedule_client_upgrade() {
 check_version() {
     printf "\nPlease choose which version to check:\n1. Story Version\n2. Story-Geth Version\n3. Back to main menu\n"
     printf "Please enter your choice: "
-    read version_choice
+    read answer
 
-    case $version_choice in
+    case $answer in
         1) printf "\nChecking Story version...\n"; cosmovisor run version ;;
         2) printf "\nChecking Story-Geth version...\n"; story-geth version ;;
         3) return ;;
@@ -208,7 +233,7 @@ while true; do
     dashboard_menu
     read choice
     case $choice in
-        1) install_story_node ;;
+        1) install_node ;;
         2) check_logs ;;
         3) check_sync_status ;;
         4) schedule_client_upgrade ;;
