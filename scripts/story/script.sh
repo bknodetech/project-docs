@@ -13,6 +13,7 @@ dashboard_menu() {
     Website: https://bknode.tech        X: https://x.com/bknodetech     Github: https://github.com/bknodetech
 
 WELCOME TO STORY TESTNET DASHBOARD BY BKNODE!
+
 Please choose your action:
 1. Install node
 2. Check logs
@@ -20,14 +21,15 @@ Please choose your action:
 4. Schedule a Story client upgrade
 5. Check version
 6. Quit
-Please enter your answer: "
+
+Please enter your choice: "
 }
 
 install_node() {
     read -p "Enter your moniker: " moniker
 
     # Define versions as variables
-    local go_version="1.21.13"
+    local go_version="1.22.4"
     local story_geth_version="0.9.3-b224fdf"
     local story_version="0.11.0-aac4bfe"
     local install_dir="$HOME/.story/story"
