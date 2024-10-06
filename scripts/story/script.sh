@@ -29,9 +29,9 @@ install_node() {
     read -p "Enter your moniker: " moniker
 
     # Define versions as variables
-    local go_version="1.22.4"
+    local go_version="1.22.0"
     local story_geth_version="0.9.3-b224fdf"
-    local story_version="0.11.0-aac4bfe"
+    local story_version="0.9.13-b4c7db1"
     local install_dir="$HOME/.story/story"
 
     # Install required packages
