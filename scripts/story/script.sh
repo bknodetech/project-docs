@@ -140,6 +140,7 @@ EOF
 
 install_snapshot() {
     latest_url="http://ws2.bknode.tech/snapshots/story/latest.txt"
+    echo $latest_url
 
     wget -q -O - "$latest_url" | while read -r line; do
         echo $line
@@ -154,6 +155,7 @@ install_snapshot() {
 
     echo "Geth Snapshot URL: $geth_snapshot_url"
     echo "Story Snapshot URL: $story_snapshot_url"
+    read -p "Enter your moniker: " moniker
 }
 
 get_logs() {
