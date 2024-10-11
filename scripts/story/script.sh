@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Function to display the main dashboard menu
-dashboard_menu() {
+render_dashboard() {
     clear
     printf "
     ██████  ██   ██ ███    ██  ██████  ██████  ███████ 
@@ -10,17 +9,18 @@ dashboard_menu() {
     ██   ██ ██  ██  ██  ██ ██ ██    ██ ██   ██ ██      
     ██████  ██   ██ ██   ████  ██████  ██████  ███████ 
 
-    Website: https://bknode.tech        X: https://x.com/bknodetech     Github: https://github.com/bknodetech
+    Website: bknode.tech        X: @bknodetech     Github: bknodetech
 
 WELCOME TO STORY TESTNET DASHBOARD BY BKNODE!
 
 Please choose your action:
 1. Install node
-2. Check logs
-3. Check sync status
-4. Schedule a Story client upgrade
-5. Check version
-6. Quit
+2. Install snapshot
+3. Get logs
+4. Get sync status
+5. Get version
+6. Client upgrade
+7. Quit
 
 Please enter your choice: "
 }
@@ -29,7 +29,7 @@ install_node() {
     read -p "Enter your moniker: " moniker
 
     # Define versions as variables
-    local go_version="1.22.0"
+    local go_version="1.22.4"
     local story_geth_version="0.9.3-b224fdf"
     local story_version="0.9.13-b4c7db1"
     local install_dir="$HOME/.story/story"
@@ -44,7 +44,7 @@ install_node() {
     sudo tar -C /usr/local -xzf /tmp/go.tar.gz
     rm /tmp/go.tar.gz
     export PATH=$PATH:/usr/local/go/bin:~/go/bin
-    echo 'export PATH=$PATH:/usr/local/go/bin:~/go/bin' >> ~/.bash_profile
+    echo 'export PATH=$PATH:/usr/local/go/bin:~/go/bin' >>~/.bash_profile
     source ~/.bash_profile
 
     # Install Story Geth binary
@@ -70,23 +70,11 @@ install_node() {
         echo 'export DAEMON_NAME=story'
         echo "export DAEMON_HOME=$install_dir"
         echo "export PATH=$HOME/go/bin:$install_dir/cosmovisor/current/bin:$PATH"
-    } >> ~/.bash_profile
+    } >>~/.bash_profile
     source ~/.bash_profile
 
     # Initialize The Iliad Network Node
     $install_dir/cosmovisor/genesis/bin/story init --moniker "$moniker" --network iliad
-
-    # Ask user if they want to use a snapshot
-    read -p "Do you want to use a snapshot? (yes/no): " use_snapshot
-    if [[ "$use_snapshot" == "yes" || "$use_snapshot" == "y" ]]; then
-        read -p "Enter the Story snapshot URL: " story_snapshot_url
-        read -p "Enter the Story Geth snapshot URL: " story_geth_snapshot_url
-        mkdir -p $install_dir
-        mkdir -p ~/.story/geth/iliad/geth
-        curl "$story_snapshot_url" | lz4 -dc - | tar -xf - -C $install_dir
-        curl "$story_geth_snapshot_url" | lz4 -dc - | tar -xf - -C ~/.story/geth/iliad/geth
-        printf "\nSnapshot downloaded and extracted successfully!\n"
-    fi
 
     # Update Peers
     local PEERS
@@ -95,7 +83,7 @@ install_node() {
     sed -i.bak -e "s/^persistent_peers *=.*/persistent_peers = \"$PEERS\"/" "$install_dir/config/config.toml"
 
     # Create and Configure systemd Services for Story-Geth and Cosmovisor
-    sudo tee /etc/systemd/system/story-geth.service > /dev/null <<EOF
+    sudo tee /etc/systemd/system/story-geth.service >/dev/null <<EOF
 [Unit]
 Description=Story Geth Client
 After=network.target
@@ -109,7 +97,7 @@ LimitNOFILE=65535
 WantedBy=multi-user.target
 EOF
 
-    sudo tee /etc/systemd/system/story.service > /dev/null <<EOF
+    sudo tee /etc/systemd/system/story.service >/dev/null <<EOF
 [Unit]
 Description=Cosmovisor service for Story binary
 After=network.target
@@ -136,37 +124,58 @@ EOF
 
     printf "\nStory Node installed successfully!\n"
 
-    # Post-install options
     while true; do
         printf "\nWhat would you like to do next?\n1. Back to dashboard menu\n2. Quit\n"
         read -p "Enter your choice: " answer
         case $answer in
-            1) return ;;
-            2) printf "Goodbye!\n"; exit 0 ;;
-            *) printf "Invalid option. Please try again.\n" ;;
+        1) return ;;
+        2)
+            printf "Goodbye!\n"
+            exit 0
+            ;;
+        *) printf "Invalid!\n" ;;
         esac
     done
 }
 
+install_snapshot() {
+    latest_url="http://ws2.bknode.tech/snapshots/story/latest.txt"
+
+    wget -q -O - "$latest_url" | while read -r line; do
+        if [[ "$line" == geth_* ]]; then
+            geth_snapshot_url="http://ws2.bknode.tech/snapshots/story/$line"
+        fi
+
+        if [[ "$line" == story_* ]]; then
+            story_snapshot_url="http://ws2.bknode.tech/snapshots/story/$line"
+        fi
+    done
+
+    echo "Geth Snapshot URL: $geth_snapshot_url"
+    echo "Story Snapshot URL: $story_snapshot_url"
+}
+
 get_logs() {
     printf "\nPlease choose the logs to check:\n1. Check Story Logs\n2. Check Story-Geth Logs\n3. Quit\nPlease enter your choice: "
-    read -p "Please enter your choice: " log_choice
+    read -p "Please enter your choice: " answer
 
-    if [[ "$log_choice" =~ ^[1-3]$ ]]; then
-        case $log_choice in
-            1) log_name="Story" ;;
-            2) log_name="Story-Geth" ;;
-            3) printf "Exiting log check.\n"; return ;;
+    if [[ "$answer" =~ ^[1-3]$ ]]; then
+        case $answer in
+        1) log_name="Story" ;;
+        2) log_name="Story-Geth" ;;
+        3)
+            printf "Exiting log check.\n"
+            return
+            ;;
         esac
         printf "Checking %s logs... Press Ctrl+C to exit\n" "$log_name"
         sudo journalctl -u ${log_name,,} -f -o cat
     else
-        printf "Invalid option.\n"
+        printf "Invalid!\n"
     fi
 }
 
-
-check_sync_status() {
+get_sync_status() {
     local status_url="https://story-testnet.rpc.bknode.tech/status"
     local local_url="localhost:26657/status"
 
@@ -188,12 +197,12 @@ check_sync_status() {
 }
 
 # Schedule a Story Client Upgrade
-schedule_client_upgrade() {
+upgrade_client() {
     printf "\nSchedule a Story Client Upgrade\n"
     read -p "Enter the Client Upgrade link: " upgrade_link
     read -p "Enter the Client version: " client_version
     read -p "Enter the Upgrade Height: " upgrade_height
-    
+
     temp_dir=$(mktemp -d)
     cd "$temp_dir"
     printf "Downloading and extracting the Client...\n"
@@ -205,21 +214,24 @@ schedule_client_upgrade() {
         rm -rf "$temp_dir"
         return
     fi
-    
+
     client_path=$(readlink -f "$client_executable")
     printf "Scheduling the upgrade...\n"
     cosmovisor add-upgrade "$client_version" "$client_path" --force --upgrade-height "$upgrade_height"
-    
+
     rm -rf "$temp_dir"
     printf "Upgrade scheduled successfully!\n"
 
     while true; do
         printf "\nWhat would you like to do next?\n1. Back to dashboard menu\n2. Quit\n"
-        read -p "Enter your choice: " post_upgrade_choice
-        case $post_upgrade_choice in
-            1) return ;;
-            2) printf "Exiting the script. Goodbye!\n"; exit 0 ;;
-            *) printf "Invalid option. Please try again.\n" ;;
+        read -p "Enter your choice: " answer
+        case $answer in
+        1) return ;;
+        2)
+            printf "Goodbye!\n"
+            exit 0
+            ;;
+        *) printf "Invalid!\n" ;;
         esac
     done
 }
@@ -229,27 +241,27 @@ get_version() {
     read -r answer
 
     case $answer in
-        1) cosmovisor run version ;;
-        2) story-geth version ;;
-        3) return ;;
-        *) printf "Invalid option.\n" ;;
+    1) cosmovisor run version ;;
+    2) story-geth version ;;
+    3) return ;;
+    *) printf "Invalid!\n" ;;
     esac
 
     read -p "Press Enter to continue..."
 }
 
-
 # Main script loop
 while true; do
-    dashboard_menu
-    read choice
-    case $choice in
-        1) install_node ;;
-        2) get_logs ;;
-        3) check_sync_status ;;
-        4) schedule_client_upgrade ;;
-        5) get_version ;;
-        6) printf "Exiting the dashboard.\n"; exit 0 ;;
-        *) printf "Invalid option, please try again.\n" ;;
+    render_dashboard
+    read answer
+    case $answer in
+    1) install_node ;;
+    2) install_snapshot ;;
+    3) get_logs ;;
+    4) get_sync_status ;;
+    5) get_version ;;
+    6) upgrade_client ;;
+    7) exit 0 ;;
+    *) printf "Invalid!\n" ;;
     esac
 done
