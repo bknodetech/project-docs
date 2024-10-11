@@ -142,7 +142,7 @@ install_snapshot() {
     latest_url="http://ws2.bknode.tech/snapshots/story/latest.txt"
 
     wget -q -O - "$latest_url" | while read -r line; do
-    echo $line
+        echo $line
         if [[ "$line" == geth_* ]]; then
             geth_snapshot_url="http://ws2.bknode.tech/snapshots/story/$line"
         fi
